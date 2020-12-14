@@ -1,0 +1,341 @@
+<ons-page id="todo">
+  <ons-navigator swipable id="myNavigator" page="listview.html" animation="slide"></ons-navigator>
+
+  <ons-toolbar>
+    <div class="left">
+      <ons-toolbar-button onclick="fn.open()">
+        <ons-icon icon="ion-navicon, material:md-menu"></ons-icon>
+      </ons-toolbar-button>
+    </div>
+    <div class="center">
+      To Do リスト
+    </div>
+  </ons-toolbar>
+
+  <template id="listview.html">
+    <ons-page id="listview">
+      <ons-toolbar>
+        <div class="center">
+          <ons-segment id="segment" style="width: 180px">
+            <button>全て</button>
+            <button><ons-icon icon="ion-ios-circle-outline"></ons-icon></button>
+            <button><ons-icon icon="ion-checkmark-circled"></ons-icon></button>
+          </ons-segment>
+        </div>
+        <div class="right">
+          <ons-toolbar-button id="add_button">
+            <ons-icon icon="ion-ios-plus-outline, material:md-plus"></ons-icon>
+          </ons-toolbar-button>
+        </div>
+      </ons-toolbar>
+      <ons-list id="todo_list"></ons-list>
+      <!--
+      <div style="margin: 1em;">
+        <p><ons-button modifier="large" onclick="clear_todo()">DEBUG: データを全て削除</ons-button></p>
+      </div>
+      -->
+    </ons-page>
+  </template>
+
+  <template id="detailview.html">
+    <ons-page id="detailview">
+      <ons-toolbar>
+        <div class="left"><ons-back-button></ons-back-button></div>
+        <div class="center"></div>
+        <div class="right">
+          <ons-toolbar-button id="edit_button">
+            <ons-icon icon="ion-edit, material:md-edit"></ons-icon>
+          </ons-toolbar-button>
+        </div>
+      </ons-toolbar>
+      <div id="detail">
+        <ons-card style="margin: 1em">
+          <div class="title" id="title"></div>
+          <div class="content" id="memo"></div>
+        </ons-card>
+        <div style="margin-right: 1.5em; text-align: right;">
+          更新日時: <span id="date"></span>
+        </div>
+        <div style="margin-right: 1.5em; text-align: right;">
+          完了日時: <span id="completion"></span>
+        </div>
+      </div>
+    </ons-page>
+  </template>
+
+  <template id="additem.html">
+    <ons-page id="additem">
+      <ons-toolbar>
+        <div class="left"><ons-back-button></ons-back-button></div>
+        <div class="center">項目の追加</div>
+      </ons-toolbar>
+      <div id="add_form" style="margin: 0.5em; padding: 0.5em;">
+        <p>
+          <ons-input input-id="title" id="title" modifier="underbar" placeholder="タイトル" style="width: 100%"></ons-input>
+        </p>
+        <p>
+          <textarea input-id="memo" id="memo" class="textarea" rows="5" placeholder="メモ" style="width: 100%"></textarea>
+        </p>
+      </div>
+      <div style="margin: 1em; text-align: center;">
+        <ons-button modifier="outline" id="cancel_button">キャンセル</ons-button>
+        <ons-button id="add_apply_button">追加</ons-button>
+      </div>
+    </ons-page>
+  </template>
+
+  <template id="edititem.html">
+    <ons-page id="edititem">
+      <ons-toolbar>
+        <div class="left"><ons-back-button></ons-back-button></div>
+        <div class="center">項目の編集</div>
+      </ons-toolbar>
+      <div id="edit_form" style="margin: 0.5em; padding: 0.5em;">
+        <p>
+          <ons-input input-id="title" id="title" modifier="underbar" placeholder="タイトル" style="width: 100%"></ons-input>
+        </p>
+        <p>
+          <textarea input-id="memo" id="memo" class="textarea" rows="5" placeholder="メモ" style="width: 100%"></textarea>
+        </p>
+      </div>
+      <div style="margin: 1em; text-align: center;">
+        <ons-button modifier="outline" id="cancel_button">キャンセル</ons-button>
+        <ons-button id="edit_apply_button">更新</ons-button>
+        <p>
+          <ons-button id="remove_button" modifier="quiet" style="color: #f30;">この項目を削除する</ons-button>
+        </p>
+      </div>
+    </ons-page>
+  </template>
+  
+  <template id="alert-dialog.html">
+    <ons-alert-dialog id="my-alert-dialog" modifier="rowfooter">
+      <div class="alert-dialog-title">削除の確認</div>
+      <div class="alert-dialog-content">
+        本当にこの項目を削除してもよろしいですか？
+      </div>
+      <div class="alert-dialog-footer">
+        <ons-alert-dialog-button onclick="hideAlertDialog(false)">キャンセル</ons-alert-dialog-button>
+        <ons-alert-dialog-button onclick="hideAlertDialog(true)">OK</ons-alert-dialog-button>
+      </div>
+    </ons-alert-dialog>
+  </template>
+
+  <script>
+
+if (!window.todo_init) {
+  window.todo_init = function(event) { // このページ (todo.html）を開いた際に実行すること
+    var page = event.target;
+    // console.log('todo_init: ' + page.id);
+    if (page.id === 'listview') {
+      moment.locale('ja');  // 日付の表示言語を日本語にする
+      view_todo();  // ローカルストレージの内容を表示する
+      document.querySelector('#add_button').addEventListener('click', function() {
+        document.querySelector('#myNavigator').pushPage('additem.html');
+      });
+      document.querySelector('#segment').addEventListener('click', function() {
+        // console.log('segment changed', this.getActiveButtonIndex());
+        view_todo();
+      });
+    }
+    else if (page.id === 'detailview') {
+      page.querySelector('ons-toolbar .center').innerHTML = page.data.title;
+      var edit_button = page.querySelector('#edit_button');
+      edit_button.num = page.data.num;
+      var todos = get_todos();
+      var todo = todos[page.data.num];
+      page.querySelector('#detail #title').innerHTML = todo.title;
+      page.querySelector('#detail #memo').innerHTML = todo.memo;
+      page.querySelector('#detail #date').innerHTML = moment(todo.date).format('LLL');
+      if (todo.completion) {
+        page.querySelector('#detail #completion').innerHTML = moment(todo.completion).format('LLL');
+      }
+      else {
+        page.querySelector('#detail #completion').innerHTML = '未完了';
+      }
+  
+      edit_button.addEventListener('click', function() {
+        document.querySelector('#myNavigator').pushPage('edititem.html', { data: { num: this.num } });
+      });
+    }
+    else if (page.id === 'edititem') {
+      // page.querySelector('#detail').innerHTML = page.data.num;
+      var num = document.createElement('div');
+      num.id = 'num';
+      num.num = page.data.num;
+      var form = page.querySelector('#edit_form');
+      form.append(num);
+      var todos = get_todos();
+      var todo = todos[page.data.num];
+      form.querySelector('#title').value = todo.title;
+      form.querySelector('#memo').value = todo.memo;
+      page.querySelector('#cancel_button').addEventListener('click', function() {
+        document.querySelector('#myNavigator').popPage();
+      });
+      page.querySelector('#remove_button').addEventListener('click', function() {
+        createAlertDialog();
+      });
+      page.querySelector('#edit_apply_button').addEventListener('click', function() {
+        var title = page.querySelector('#title').value;
+        var memo = page.querySelector('#memo').value;
+        var num = page.querySelector('#num').num;
+        console.log('title:', title);
+        console.log('memo:', memo);
+        console.log('num:', num);
+        document.querySelector('#myNavigator').popPage();
+        update_todo(num, title, memo);
+      });
+    }
+    else if (page.id === 'additem') {
+      page.querySelector('#cancel_button').addEventListener('click', function() {
+        document.querySelector('#myNavigator').popPage();
+      });
+      page.querySelector('#add_apply_button').addEventListener('click', function() {
+        var title = page.querySelector('#title').value;
+        var memo = page.querySelector('#memo').value;
+        document.querySelector('#myNavigator').popPage();
+        add_todo(title, memo);
+      });
+    }
+  };
+  document.addEventListener('init', window.todo_init);
+}
+
+var createAlertDialog = function() {  // 削除の確認ダイアログを表示する
+  var dialog = document.getElementById('my-alert-dialog');
+  if (dialog) {
+    dialog.show();
+  } else {
+    ons.createElement('alert-dialog.html', { append: true })
+      .then(function(dialog) {
+        dialog.show();
+      });
+  }
+};
+
+var hideAlertDialog = function(confirm) { // 削除の確認ダイアログを隠す
+  if (confirm) {  // OK を押されていたら削除する
+    var num = document.querySelector('#edit_form').querySelector('#num');
+    console.log('ok', num.num);
+    document.querySelector('#myNavigator').popPage().then(function() {
+      document.querySelector('#myNavigator').popPage();
+    });
+    remove_todo(num.num);
+  }
+  document
+    .getElementById('my-alert-dialog')
+    .hide();
+};
+
+function get_todos() {  // ローカルストレージの内容を読み込む
+  var todos_json = localStorage.getItem('todo');  // ローカルストレージから todo というキー名のデータを読み込む（ここではデータ形式は JSON）
+  var todos = [];  // 初期値の設定（空の配列）
+  if (todos_json != null) todos = JSON.parse(todos_json);  // ストレージに既に JSON データが保存されていればそれを解析する
+  // console.log(todos[0].title);
+  return todos;
+}
+
+function view_todo() {  // ローカルストレージの内容を表示する
+  // console.log('  view_todo');
+  var todos = get_todos();  // ローカルストレージの内容を読み込む
+  var seg = document.querySelector('#segment');
+  var filter = seg.getActiveButtonIndex();  // 絞り込み
+  var list = document.querySelector('#todo_list'); // 内容を表示する場所を指定
+  list.innerHTML = '';  // 表示内容をクリアする
+  for (var n = 0; n < todos.length; n++) {  // ローカルストレージに記録されている数だけ繰り返す
+    if (filter == 1 && todos[n].result) continue;
+    if (filter == 2 && !todos[n].result) continue;
+    var item = document.createElement('ons-list-item');  // 新たに ons-list-item を作成
+    item.setAttribute('modifier', 'tappable chevron');
+    var left_div = document.createElement('div');
+    var center_div = document.createElement('div');
+    left_div.className = 'left';
+    center_div.className = 'center';
+    var result = document.createElement('ons-checkbox');
+    var title_span = document.createElement('span');
+    var sub_span = document.createElement('span');
+    // result.id = 'result_' + n;
+    result.num = n;
+    result.checked = todos[n].result;
+    title_span.className = 'list-item__title';
+    title_span.innerHTML = todos[n].title;
+    sub_span.className = 'list-item__subtitle';
+    sub_span.innerHTML = moment(todos[n].date).format('LLL');
+    left_div.appendChild(result);
+    center_div.appendChild(title_span);
+    center_div.appendChild(sub_span);
+    center_div.title = todos[n].title;  // 詳細ページで表示するタイトル
+    center_div.num = n; // todo キーの何番目の項目か
+    item.appendChild(left_div);
+    item.appendChild(center_div);
+    list.appendChild(item);
+  }
+  var rows = document.querySelector('#todo_list').querySelectorAll('ons-list-item');
+  for (var n = 0; n < rows.length; n++) {
+    rows[n].querySelector('.center').addEventListener('click', function() {
+      document.querySelector('#myNavigator').pushPage('detailview.html', { data: { title: this.title, num: this.num } });
+    });
+    rows[n].querySelector('ons-checkbox').addEventListener('click', function() {
+      change_todo_result(this.num, this.checked);
+    });
+  }
+}
+
+function change_todo_result(num, result) {
+  var todos = get_todos();
+  var todo = todos[num];
+  todo.result = result;
+  if (result == true) todo.completion = moment();
+  else todo.completion = null;
+  var new_todos_json = JSON.stringify(todos);  // 配列を JSON データに変換
+  localStorage.setItem('todo', new_todos_json);  // JSON データをローカルストレージの todo キーのデータとして書き込む
+  view_todo();  // 表示を更新する
+}
+
+function update_todo(num, title, memo) {
+  var todos = get_todos();
+  var todo = todos[num];
+  todo.title = title;
+  todo.memo = memo;
+  todo.date = moment();
+  var new_todos_json = JSON.stringify(todos);  // 配列を JSON データに変換
+  localStorage.setItem('todo', new_todos_json);  // JSON データをローカルストレージの todo キーのデータとして書き込む
+  // 詳細表示を更新する
+  document.querySelector('#detail #title').innerHTML = title;
+  document.querySelector('#detail #memo').innerHTML = memo;
+  document.querySelector('#detail #date').innerHTML = todo.date.format('LLL');
+  view_todo();  // リスト表示を更新する
+}
+
+function add_todo(title, memo) {
+  // var val = document.querySelector('#title').value; // テキストフォームに書かれた値を取得
+  var todos = get_todos();  // ローカルストレージの内容を読み込む
+  var todo_data = {  // 新しく追加する値（辞書型，連想配列）
+    'date': moment(), // 現在の日時
+    'title': title, // タイトル
+    'memo': memo, // メモ
+    'result': false, // 完了したか
+    'completion': null,  // 完了日時
+  };
+  todos.unshift(todo_data);  // 配列の先頭に追加
+  var new_todos_json = JSON.stringify(todos);  // 配列を JSON データに変換
+  localStorage.setItem('todo', new_todos_json);  // JSON データをローカルストレージの todo キーのデータとして書き込む
+  view_todo();  // 表示を更新する
+}
+
+function remove_todo(n) { // To Do の n 番目の項目を削除する
+  var todos = get_todos();  // ローカルストレージの内容を読み込む
+  todos.splice(n, 1); // 配列の n 番目の要素を削除する
+  var new_todos_json = JSON.stringify(todos);  // 更新された配列を JSON データに変換
+  localStorage.setItem('todo', new_todos_json);  // JSON データをローカルストレージの todo キーのデータとして書き込む
+  view_todo();  // 表示を更新する
+}
+
+function clear_todo() {  // To Do の内容をクリアする（デバッグ用）
+  localStorage.removeItem('todo'); // ローカルストレージの todo キーのデータを削除する
+  view_todo();  // 表示を更新する
+}
+
+  </script>
+
+</ons-page>

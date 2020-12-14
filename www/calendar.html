@@ -1,0 +1,399 @@
+<ons-page id="calendar">
+	<ons-toolbar>
+		<div class="left">
+			<ons-toolbar-button onclick="fn.open()">
+				<ons-icon icon="ion-navicon, material:md-menu"></ons-icon>
+			</ons-toolbar-button>
+		</div>
+		<div class="center">カレンダー (日表示)</div>
+		<div class="right">
+			<ons-toolbar-button onclick="add_event();">
+				<ons-icon icon="md-plus"></ons-icon>
+			</ons-toolbar-button>
+		</div>
+	</ons-toolbar>
+
+	<ons-tabbar swipeable position="auto">
+		<ons-tab page="daily.html" label="日表示">
+		</ons-tab>
+		<ons-tab page="weekly.html" label="週表示">
+		</ons-tab>
+		<ons-tab page="monthly.html" label="月表示" active>
+		</ons-tab>
+	</ons-tabbar>
+
+	<template id="daily.html">
+		<ons-page id="daily">
+			<p style="text-align: center;">
+				タブ One
+			</p>
+		</ons-page>
+	</template>
+
+	<template id="weekly.html">
+		<ons-page id="weekly">
+			<p style="text-align: center;">
+				タブ Two
+			</p>
+		</ons-page>
+	</template>
+
+	<template id="monthly.html">
+		<ons-page id="monthly">
+
+      <ons-toolbar>
+        <div class="left">
+          <ons-toolbar-button onclick="prev()" id="prev_button">
+            <ons-icon icon="md-chevron-up"></ons-icon>
+          </ons-toolbar-button>
+        </div>
+        <div class="center" id="month_label"></div>
+        <div class="right">
+          <ons-toolbar-button onclick="today()" id="today_button">
+            今日
+          </ons-toolbar-button>
+          <ons-toolbar-button onclick="next()" id="next_button">
+            <ons-icon icon="md-chevron-down"></ons-icon>
+          </ons-toolbar-button>
+        </div>
+      </ons-toolbar>
+
+      <ons-carousel fullscreen swipeable auto-scroll overscrollable direction="vertical" id="monthly_calendar"></ons-carousel>
+		</ons-page>
+	</template>
+
+  <script>
+
+    if (!window.currentMonth) { // 未定義なら
+      class MonthlyCalendar {
+        constructor(year = null, month = null) {
+          if (year == null || month == null) {
+            var now = new Date();
+            this.year = now.getFullYear();
+            this.month = now.getMonth()+1;
+          }
+          else {
+            this.year = year;
+            this.month = month;
+            while (this.month > 12) {
+              this.month -= 12;
+              this.year++;
+            }
+            while (this.month < 1) {
+              this.month += 12;
+              this.year--;
+            }
+          }
+          this.id = 'calendar_' + this.year + '_' + this.month;
+          this._calendarData = null;
+          this._element = null;
+          this._next = null;
+          this._prev = null;
+        }
+
+        // 次の月
+        next() {
+          if (!this._next) this._next = new MonthlyCalendar(this.year, this.month+1);
+          return this._next;
+        }
+
+        // 前の月
+        prev() {
+          if (!this._prev) this._prev = new MonthlyCalendar(this.year, this.month-1);
+          return this._prev;
+        }
+
+        // カレンダーデータの生成
+        calendarData() {
+          if (this._calendarData) return this._calendarData;
+          this._calendarData = [];
+          var today = new Date();
+          var first = new Date(this.year, this.month-1, 1); // 月は 0-11 で指定する
+          var last = new Date(this.year, this.month, 0);  // 日を 0 にすると前の月の最後の日となる
+          var week = [];
+          var space = (first.getDay() + 6) % 7; // 月曜始まりのカレンダーで，初日までの空白の数
+          for (var i = 0; i < space; i++) week.push(null);  // 空白を null で埋める
+          for (var d = 1; d <= last.getDate(); d++) {
+            var date = new Date(this.year, this.month-1, d);
+            var data = {
+              'date': d,
+              'dateObject': date,
+              'today': false,
+              'holiday': false,
+              'events': [],
+            };
+            if (today.getFullYear() == this.year && today.getMonth() == this.month-1 && today.getDate() == d) data.today = true;
+            var key = '' + this.year + '-' + this.month + '-' + d;
+            if (key in window.events) {
+              data.events = window.events[key];
+            }
+            // if (this.month == 12 && d == 24) {
+            //   data.events.push('プレゼントを買う');
+            // }
+            // if (this.month == 12 && d == 25) {
+            //   data.holiday = 'クリスマス';
+            //   data.events.push('ケーキを買う');
+            //   data.events.push('プレゼントを渡す');
+            // }
+            week.push(data);
+            if (date.getDay() == 0) { // 日曜で一週間は終わり
+              this._calendarData.push(week);
+              week = [];
+            }
+          }
+          if (week.length > 0) this._calendarData.push(week); // 残りを追加
+          //console.log(this._calendarData);
+          return this._calendarData;
+        }
+
+        // カレンダーの描画
+        element() {
+          if (this._element) return this._element;
+          var weekdayLabel = ['月', '火', '水', '木', '金', '土', '日'];
+          this._element = document.createElement('ons-carousel-item');
+          this._element.id = this.id;
+          var content = document.createElement('table');
+          var sel_date = null;
+          if (window.selected_date) sel_date = window.selected_date.date;
+          var tableStyle = '\
+            width: 100%;\
+            margin: 0;\
+            border-collapse: collapse;\
+            background-color: white;';
+          content.style = tableStyle;
+          var header = document.createElement('tr');
+          header.style = 'height: 1.5em; box-shadow: 0 0.5px 1px #8888;';
+          for (var i = 0; i < weekdayLabel.length; i++) {
+            var dayLabel = document.createElement('th');
+            dayLabel.style = 'text-align: center; font-size: small; padding-top: 0.7em;';
+            dayLabel.innerHTML = weekdayLabel[i];
+            header.appendChild(dayLabel);
+          }
+          content.appendChild(header);
+          var weeks = this.calendarData();
+          for (var w = 0; w < weeks.length; w++) {
+            var tr = document.createElement('tr');
+            tr.style = 'height: 3em; border-bottom: 0.5px solid #8882;';
+            for (var d = 0; d < weeks[w].length; d++) {
+              var td = document.createElement('td');
+              if (weeks[w][d]) {
+                var td_style = 'text-align: center;';
+                var day = weeks[w][d].dateObject.getDay();
+                if (day < 1 || day > 5 || weeks[w][d].holiday) td_style += ' color: #888;';
+                td.style = td_style;
+                var label = document.createElement('p');
+                var label_style = '\
+                  margin-top: 2px;\
+                  margin-bottom: 0;\
+                  margin-left: auto;\
+                  margin-right: auto;\
+                  width: 1.8em;';
+                if (weeks[w][d].today || weeks[w][d].date == sel_date) {
+                  label_style += '\
+                    height: 1.55em;\
+                    padding-top: 0.25em;\
+                    border-radius: 1.5em;\
+                    color: white;\
+                    font-weight: bold;';
+                  if (weeks[w][d].date == sel_date) {
+                    if (ons.platform.isAndroid()) label_style += 'background-color: rgb(30, 136, 229);';
+                    else label_style += 'background-color: rgb(0, 118, 255);';
+                  }
+                  else {
+                    if (ons.platform.isAndroid()) label_style += 'background-color: rgba(30, 136, 229, 0.5);';
+                    else label_style += 'background-color: rgba(0, 118, 255, 0.5);';
+                  }
+                }
+                else
+                  label_style += '\
+                    height: 1.5em;\
+                    padding-top: 0.3em;';
+                label.style = label_style;
+                label.innerHTML = weeks[w][d].date;
+                var mark = document.createElement('p');
+                mark.style = 'font-size: small; margin: 0; margin-bottom: 4px; padding: 0;';
+                var events = weeks[w][d].events;
+                if (events.length > 0) {
+                  var mark_html = '';
+                  for (var i = 0; i < events.length; i++) {
+                    mark_html += '<span style="color: #ed8; ">●</span>';
+                    if (i > 1) break;  // 数が多くなり過ぎないよう
+                  }
+                  mark.innerHTML = mark_html;
+                  td.setAttribute('events', JSON.stringify(events));
+                }
+                else mark.innerHTML = '&nbsp;'; // 空白文字
+                td.appendChild(label);
+                td.appendChild(mark);
+                td.id = 'date' + this.year + '-' + this.month + '-' + weeks[w][d].date;
+              }
+              tr.appendChild(td);
+            }
+            content.appendChild(tr);
+          }
+          this._element.appendChild(content);
+
+          var el_id = '#' + this.id;
+          var selected_d = { year: this.year, month: this.month };
+          content.onclick = function(event) {
+            window.selected_date = null;
+            var element = document.querySelector(el_id).querySelector('div');
+            var td = event.target.closest('td');
+            if (td) {
+              var p = td.querySelector('p');
+              if (p) {
+                window.selected_date = selected_d;
+                window.selected_date.date = parseInt(td.querySelector('p').textContent);
+              }
+            }
+            // console.log(window.selected_date);
+            currentMonth._element = null;
+            currentMonth.element();
+            var old_node = document.querySelector(el_id);
+            old_node.parentNode.replaceChild(currentMonth.element(), old_node);
+          };
+
+          var element = document.createElement('div');
+          element.innerHTML = '';
+          if (window.selected_date) {
+            var html = '<ons-list><ons-list-header>' + window.selected_date.date + '日</ons-list-header>';
+            var q_id = '#date'+window.selected_date.year+'-'+window.selected_date.month+'-'+window.selected_date.date;
+            var eventsJSON = document.querySelector(q_id).getAttribute('events');
+            if (eventsJSON) {
+              events = JSON.parse(eventsJSON);
+              for (var ev = 0; ev < events.length; ev++) {
+                html += '<ons-list-item>' + events[ev] + '</ons-list-item>';
+              }
+            }
+            html += '</ons-list>';
+            element.innerHTML = html;
+          }
+          this._element.appendChild(element);
+          return this._element;
+        }
+      }
+
+      window.currentMonth = new MonthlyCalendar();
+    }
+
+    var prev = function() {
+      return new Promise((resolve, reject) => {
+        var carousel = document.querySelector('#monthly_calendar');
+        resolve(carousel.prev());
+      });
+    };
+
+    var next = function() {
+      return new Promise((resolve, reject) => {
+        var carousel = document.querySelector('#monthly_calendar');
+        resolve(carousel.next());
+      });
+    };
+
+    var today = function() {
+      var curYear = currentMonth.year;
+      var curMonth = currentMonth.month;
+      var t = new Date();
+      var todayYear = t.getFullYear();
+      var todayMonth = t.getMonth()+1;
+      var diff = (todayYear - curYear) * 12 + todayMonth - curMonth;
+      var promiseArray = [];
+      if (diff > 0) {
+        for (var i = 0; i < diff; i++) promiseArray.push(next());
+      }
+      if (diff < 0) {
+        for (var i = 0; i < diff*(-1); i++) promiseArray.push(prev());
+      }
+      Promise.all(promiseArray).then(() => {
+        document.querySelector('#date' + todayYear + '-' + todayMonth + '-' + t.getDate()).click();
+      });
+    };
+
+    var add_event = function() {
+      console.log('add event', selected_date);
+      if (selected_date) {
+        var key = '' + selected_date.year + '-' + selected_date.month + '-' + selected_date.date;
+        console.log(key);
+        if (key in window.events) {
+          window.events[key].push('テストイベント');
+        }
+        else window.events[key] = ['テストイベント'];
+        console.log(window.events);
+        currentMonth._calendarData = null;
+        currentMonth.calendarData();
+        currentMonth._element = null;
+        currentMonth.element();
+        var old_node = document.querySelector('#calendar_' + selected_date.year + '_' + selected_date.month);
+        old_node.parentNode.replaceChild(currentMonth.element(), old_node);
+        document.querySelector('#date'+key).click();
+      }
+    }
+
+    var calendar_carousel_prechange = function(e) {
+      // console.log('calendar_carousel_prechange');
+      // 0 番目に前の月を追加した直後の next() の際は何もしない
+      if (e.activeIndex == 1 && e.lastActiveIndex == 0) return;
+
+      if (e.lastActiveIndex > e.activeIndex) {
+        window.currentMonth = window.currentMonth.prev();
+      }
+      if (e.lastActiveIndex < e.activeIndex) {
+        window.currentMonth = window.currentMonth.next();
+      }
+      document.querySelector('#month_label').innerHTML = window.currentMonth.year + '年' + window.currentMonth.month + '月';
+    };
+
+    var calendar_carousel_postchange = function(e) {
+      // console.log('calendar_carousel_postchange');
+      if (e.activeIndex == 0) { // carousel に前の月を追加
+        var carousel = document.querySelector('#monthly_calendar');
+        var reference = carousel.querySelector('.ons-swiper-target').firstChild;
+        carousel.insertBefore(window.currentMonth.prev().element(), reference);
+        carousel.next({ 'animation': 'none' }); // 0 番目に追加したので，1 番目に戻す
+      }
+      if (e.activeIndex == e.carousel.itemCount-1) { // carousel に次の月を追加
+        var carousel = document.querySelector('#monthly_calendar');
+        carousel.appendChild(window.currentMonth.next().element());
+      }
+      window.selected_date = null;
+    };
+
+    if (!window.calendar_init) {
+      window.calendar_init = function(event) { // このページ (calendar.html）を開いた際に実行すること
+        window.selected_date = null;
+        window.events = {};
+        var page = event.target;
+        // console.log("calendar_init: " + page.id);
+        if (page.id == 'monthly') {
+          var monthly_calendar = document.querySelector('#monthly_calendar');
+          if (monthly_calendar.itemCount < 1) { // 月表示の初期処理
+            var prevMonth = currentMonth.prev();
+            var nextMonth = currentMonth.next();
+            monthly_calendar.appendChild(prevMonth.element());
+            monthly_calendar.appendChild(currentMonth.element());
+            monthly_calendar.appendChild(nextMonth.element());
+            monthly_calendar.addEventListener('prechange', calendar_carousel_prechange);
+            monthly_calendar.addEventListener('postchange', calendar_carousel_postchange);
+            document.querySelector('#month_label').innerHTML = window.currentMonth.year + '年' + window.currentMonth.month + '月';
+            monthly_calendar.first().then(function() { monthly_calendar.next(); });
+          }
+        }
+      };
+      document.addEventListener('init', window.calendar_init);
+    }
+    
+    if (!window.calendar_prechange) {
+      window.calendar_prechange = function(event) {
+        if (event.target.tagName == 'ONS-TABBAR') {
+          // console.log('%%% tab');
+          // console.log(event.activeIndex);
+          // タブを切り替えた際に toolbar のラベルを更新する
+          document.querySelector('ons-toolbar .center')
+            .innerHTML = 'カレンダー (' + event.tabItem.getAttribute('label') + ')';
+        }
+      };
+      document.addEventListener('prechange', window.calendar_prechange);
+    }
+
+  </script>
+</ons-page>
