@@ -12,6 +12,7 @@
 
   <script>
     ons.ready(function() {
+      ons.forcePlatformStyling('ios');
       console.log("Onsen UI is ready!");
     });
 
@@ -101,6 +102,25 @@
         Settings
       </div>
     </ons-toolbar>
+    <ons-list>
+        <ons-list-header>表示スタイル</ons-list-header>
+        <ons-list-item tappable onclick="ons.forcePlatformStyling('ios')">
+            <label class="left">
+                <ons-radio name="platform" input-id="radio-1" checked></ons-radio>
+            </label>
+            <label for="radio-1" class="center">
+                iOS 向け
+            </label>
+        </ons-list-item>
+        <ons-list-item tappable onclick="ons.forcePlatformStyling('android')">
+            <label class="left">
+                <ons-radio name="platform" input-id="radio-2"></ons-radio>
+            </label>
+            <label for="radio-2" class="center">
+                Android 向け
+            </label>
+        </ons-list-item>
+    </ons-list>
   </ons-page>
   </ons-template>
 
@@ -116,6 +136,7 @@
         About
       </div>
     </ons-toolbar>
+    <ons-button onclick="console.log('test');">console log test</ons-button>
   </ons-page>
   </ons-template>
 
